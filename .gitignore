@@ -1,0 +1,7 @@
+config.json
+config.json.*
+!config.json.example
+/node_modules/
+/build/
+chromedriver*
+package-lock.json
