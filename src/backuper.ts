@@ -203,21 +203,22 @@ class Backuper {
 
             if (!reports[i].filesShouldBe) {
                 const hours = parseInt(config.hoursForPartialBackup);
-                await mailer.sendEmail(this.options.all ? 'Списов файлов пуст!' : `За последние ${hours}ч нет изменённых файлов.`);
-                return;
+                const text = this.options.all ? 'Списов файлов пуст!' : `За последние ${hours}ч нет изменённых файлов.`;
+                fullReport.push(`<h1>${reports[i].login}: ${text}</h1>`);
+
+            } else {
+                const header = (isDownloadedAll ? (hasErrors ? partlyHTML : goodHTML) : badHTML)
+                    .replace('#USER#', reports[i].login);
+
+                fullReport.push(header + `
+                    <p>сохранено файлов в проектах: ${this.currentReportData.filesSaved}/${this.currentReportData.filesShouldBe}</p>
+                    <hr>
+                    <p>${statistics}</p>
+                    <hr>
+                    <p>Errors: ${errorsCount}</p>
+                    <p>${errors}</p>
+                `);
             }
-
-            const header = (isDownloadedAll ? (hasErrors ? partlyHTML : goodHTML) : badHTML)
-                .replace('#USER#', reports[i].login);
-
-            fullReport.push(header + `
-                <p>сохранено файлов в проектах: ${this.currentReportData.filesSaved}/${this.currentReportData.filesShouldBe}</p>
-                <hr>
-                <p>${statistics}</p>
-                <hr>
-                <p>Errors: ${errorsCount}</p>
-                <p>${errors}</p>
-            `);
         }
 
         await mailer.sendEmail(fullReport.join("<br>\n<br>\n") + "<br>\n<br>\n" + this.totalTime);
