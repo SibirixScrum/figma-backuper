@@ -24,8 +24,10 @@ class Backuper {
     // использованые имена файлов
     private titles: Set<any>;
 
-    // максимальное время ожидания появления элемента, 3 минуты
-    private delay: number = 3 * 60 * 1000;
+    // максимальное время ожидания появления элемента, 1 минута
+    private delayElement: number = 60 * 1000;
+    // максимальное время ожидания скачивания файла, 5 минут
+    private delayFileDownload: number = 5 * 60 * 1000;
     private MAX_TRIES = 10;
 
     // период проверки появления файла в каталоге
@@ -315,7 +317,7 @@ class Backuper {
             if (this.options.debug) console.log('Send "Save local" command, waiting for file');
 
             // чтобы файл успел скачаться
-            let count = Math.round(this.delay / this.period);
+            let count = Math.round(this.delayFileDownload / this.period);
             const success = await this.waitExistenceOfFile(count, title, folder);
 
             // надеемся, что файл с дефолтным, вероятно, повторяющимся названием, тоже успеет скачаться
@@ -445,12 +447,12 @@ class Backuper {
     async waitForElementAndGet(selector: string) {
         const element = await this.webdriver.wait(
             WebDriver.until.elementLocated(WebDriver.By.css(selector)),
-            this.delay
+            this.delayElement
         );
 
         await this.webdriver.wait(
             WebDriver.until.elementIsVisible(element),
-            this.delay
+            this.delayElement
         );
 
         return await this.webdriver.findElement(WebDriver.By.css(selector));
