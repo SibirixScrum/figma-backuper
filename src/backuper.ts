@@ -193,35 +193,36 @@ class Backuper {
 
         const fullReport: string[] = [];
         for (let i = 0; i < reports.length; i++) {
-            const isDownloadedAll = (reports[i].filesSaved == reports[i].filesShouldBe);
-            const hasErrors = (reports[i].errors.length > 0);
+            const report = reports[i];
+            const isDownloadedAll = (report.filesSaved == report.filesShouldBe);
+            const hasErrors = (report.errors.length > 0);
 
-            const errorsCount = reports[i].errors.length;
-            const errors = reports[i].errors.join("<br>\n");
+            const errorsCount = report.errors.length;
+            const errors = report.errors.join("<br>\n");
 
-            const statistics = this.options.verbose ? reports[i].statistics.join('<br>') : '';
+            const statistics = this.options.verbose ? report.statistics.join('<br>') : '';
 
-            if (!reports[i].filesShouldBe) {
+            if (!report.filesShouldBe) {
                 const hours = parseInt(config.hoursForPartialBackup);
                 const text = this.options.all ? 'Списов файлов пуст!' : `За последние ${hours}ч нет изменённых файлов.`;
-                fullReport.push(`<h1>${reports[i].login}: ${text}</h1>`);
+                fullReport.push(`<h1>${report.login}: ${text}</h1>`);
 
             } else {
                 const header = (isDownloadedAll ? (hasErrors ? partlyHTML : goodHTML) : badHTML)
-                    .replace('#USER#', reports[i].login);
+                    .replace('#USER#', report.login);
 
                 fullReport.push(header + `
-                    <p>сохранено файлов в проектах: ${this.currentReportData.filesSaved}/${this.currentReportData.filesShouldBe}</p>
+                    <p>сохранено файлов в проектах: ${report.filesSaved}/${report.filesShouldBe}</p>
                     <hr>
                     <p>${statistics}</p>
                     <hr>
-                    <p>Errors: ${errorsCount}</p>
+                    <p>Ошибки: ${errorsCount}</p>
                     <p>${errors}</p>
                 `);
             }
         }
 
-        await mailer.sendEmail(fullReport.join("<br>\n<br>\n") + "<br>\n<br>\n" + this.totalTime);
+        await mailer.sendEmail(fullReport.join("<br><hr><hr>\n<br>\n") + "<br>\n<br>\n" + this.totalTime);
     }
 
     /**
