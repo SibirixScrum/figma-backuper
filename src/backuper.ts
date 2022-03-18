@@ -49,6 +49,14 @@ class Backuper {
         this.baseFolder = config.baseFolder;
         this.user = config.user;
 
+        if (config.delayFileDownloadSeconds) {
+            const delay = parseInt(config.delayFileDownloadSeconds, 10);
+
+            if (!isNaN(delay) && delay >= 60) {
+                this.delayFileDownload = delay * 1000;
+            }
+        }
+
         if (this.options.autoIncremental) {
             const weekDayNumber = (new Date()).getDay();
             this.options.all = (weekDayNumber === 6); // Суббота

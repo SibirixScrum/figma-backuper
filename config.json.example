@@ -16,6 +16,7 @@
             ]
         }
     ],
+    "delayFileDownloadSeconds": 300,
     "baseFolder": "<путь до папки, в которую будут сохраняться файлы>",
     "hoursForPartialBackup": 48,
     "transporter": {
