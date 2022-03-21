@@ -1,7 +1,3 @@
-export class WebElement {
-    getText: () => string
-}
-
 // класс отчета пользователя
 export class Report {
     login: string;
@@ -9,16 +5,6 @@ export class Report {
     filesSaved: number;
     errors: string[];
     statistics: string[];
-}
-
-// класс файла, перезупущенного после неудачного скачивания
-export class Restarted {
-    title:string;
-    timesRestarted: number;
-    success: boolean;
-    userLogin: string;
-    sycleCount: number;
-    link: string;
 }
 
 export class Team {
@@ -39,11 +25,6 @@ export class LinkToFolder {
     tries: number;
 }
 
-export class ResultToUser {
-    res: boolean;
-    user: User;
-}
-
 // apiHelper
 export class FigmaTeam {
     id: string;
@@ -53,7 +34,6 @@ export class FigmaTeam {
 export class FigmaFile {
     key: string;
     name: string;
-    thumbnail_url: string;
     last_modified: string;
 }
 export class FigmaProject {

@@ -11,7 +11,6 @@ const axios = require('axios');
 
 const urlApi = 'https://api.figma.com/v1/';
 const urlFile = 'https://www.figma.com/file/';
-const configApi = require('../config.json');
 const MAX_TRIES = 10;
 
 /**
