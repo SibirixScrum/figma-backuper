@@ -4,6 +4,7 @@
             "login": "<логин пользователя в фигме>",
             "password": "<пароль пользователя>",
             "token": "<токен пользователя>",
+            "downloadRecent": false,
             "teams": [
                 {
                     "id": "<team 1 id>",
@@ -16,9 +17,10 @@
             ]
         }
     ],
+    "hoursForPartialBackup": 48,
+    "daysForAutoIncrementalBackup": 8,
     "delayFileDownloadSeconds": 300,
     "baseFolder": "<путь до папки, в которую будут сохраняться файлы>",
-    "hoursForPartialBackup": 48,
     "transporter": {
         "host": "smtp.gmail.com",
         "port": 465,

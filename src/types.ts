@@ -30,6 +30,7 @@ export class User {
     login: string;
     password: string;
     token: string;
+    downloadRecent: boolean;
     teams: Team[];
 }
 

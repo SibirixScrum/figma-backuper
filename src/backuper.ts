@@ -28,12 +28,18 @@ class Backuper {
     private delayElement: number = 60 * 1000;
     // максимальное время ожидания скачивания файла, 5 минут
     private delayFileDownload: number = 5 * 60 * 1000;
+
+    // За какое время скачивать файлы при частичном бекапе и при использовании --auto-incremental в день частичного бекапа
+    private hoursForPartialBackup: number = 48; // количество часов
+    // За какое время скачивать файлы при использовании --auto-incremental в день полного бекапа
+    private daysForAutoIncrementalBackup: number = 8; // количество дней
     private MAX_TRIES = 10;
 
     // период проверки появления файла в каталоге
     private period: number = 500;
 
     private urlFigma: string = 'https://www.figma.com/login';
+    private urlRecent: string = 'https://www.figma.com/files/recent';
     private baseFolder: string;
 
     private currentReportData: Report;
@@ -48,6 +54,8 @@ class Backuper {
         this.titles = new Set();
         this.baseFolder = config.baseFolder;
         this.user = config.user;
+        this.hoursForPartialBackup = parseInt(config.hoursForPartialBackup, 10);
+        this.daysForAutoIncrementalBackup = parseInt(config.daysForAutoIncrementalBackup, 10);
 
         if (config.delayFileDownloadSeconds) {
             const delay = parseInt(config.delayFileDownloadSeconds, 10);
@@ -59,7 +67,10 @@ class Backuper {
 
         if (this.options.autoIncremental) {
             const weekDayNumber = (new Date()).getDay();
-            this.options.all = (weekDayNumber === 6); // Суббота
+
+            if (weekDayNumber === 6) {
+                this.hoursForPartialBackup = this.daysForAutoIncrementalBackup * 24;
+            }
         }
     }
 
@@ -101,6 +112,23 @@ class Backuper {
 
         await this.getWebdriver(user, true);
 
+        if (user.teams.length) {
+            await this.backupProjectsAndTeams(user);
+        }
+
+        if (user.downloadRecent) {
+            await this.backupRecent(user);
+        }
+
+        const webdriver = await this.getWebdriver(user);
+        await webdriver.close();
+
+        if (this.options.verbose) console.log(`Backup for user ${user.login} done`);
+    }
+
+    async backupProjectsAndTeams(user: User) {
+        if (this.options.verbose) console.log('Backup all projects and teams, start');
+
         let linksToFolders: LinkToFolder[] = [];
 
         // получаем ссылки на файлы, измененные менее X часов назад
@@ -116,7 +144,10 @@ class Backuper {
             return;
         }
 
-        if (this.options.debug) console.log({ linkCount: figmaApiLinks.length, links: figmaApiLinks.map((link) => link.link) });
+        if (this.options.debug) console.log({
+            linkCount: figmaApiLinks.length,
+            links: figmaApiLinks.map((link) => link.link)
+        });
 
         // Папка для бекапа
         const userFolder = fsHelper.prepareFolderName(this.baseFolder, user.login);
@@ -126,29 +157,94 @@ class Backuper {
             fsHelper.createFolder(projectFolder);
 
             linksToFolders.push({
-                link:   figmaApiLinks[i].link,
+                link: figmaApiLinks[i].link,
                 folder: projectFolder,
-                tries:  0,
+                tries: 0,
             });
         }
 
-        this.currentReportData.filesShouldBe = figmaApiLinks.length;
+        this.currentReportData.filesShouldBe += figmaApiLinks.length;
 
-        // сохранение всех файлов
-        await this.backupAllProjects(linksToFolders);
+        if (linksToFolders.length) {
+            // сохранение всех файлов
+            await this.startFilesDownload(linksToFolders);
+        }
+
+        if (this.options.verbose) console.log('Backup all projects and teams, done');
+    }
+
+    async backupRecent(user: User) {
+        if (this.options.verbose) console.log('Backup recent, start');
 
         const webdriver = await this.getWebdriver(user);
-        await webdriver.close();
+        await webdriver.get(this.urlRecent);
 
-        if (this.options.verbose) console.log(`Backup for user ${user.login} done`);
+        // дождаться загрузки страницы
+        await webdriver.sleep(2000);
+
+        if (this.options.debug) console.log('    waitForElementAndGet', selector.recentFilesSelector);
+        const recentRows = await this.waitForElementAndGet(selector.recentFilesSelector, true);
+
+        const regexpTitle = /<div[^>]+class[^>]+generic_tile--title[^>]+>([^<]+)<\/div>/;
+        const regexpTime = /Edited[^<]*<span[^>]*>([^<]+)<\/span>/;
+        const regexpTimeParts = /(?<num>\d+|last)\s(?<type>minute|hour|day|month|year)s?(\sago)?/;
+        // Временны екоэффициенты, относительно 1 минуты
+        const timeKoeffs = {
+            'minute': 1,
+            'hour': 60,
+            'day': 60 * 24,
+            'month': 60 * 24 * 30,
+            'year': 60 * 24 * 365,
+        };
+
+        const userFolder = fsHelper.prepareFolderName(this.baseFolder, user.login);
+        let recentFolder = fsHelper.prepareFolderName(userFolder, "Recent");
+        fsHelper.createFolder(recentFolder);
+
+        let linksToFolders: LinkToFolder[] = [];
+
+        for (let i = 0; i < recentRows.length; i++) {
+            recentRows[i].click();
+            await webdriver.sleep(5);
+            const href = await recentRows[i].getAttribute('href');
+            const html = await recentRows[i].getAttribute('innerHTML');
+            const linkObj = {
+                link:   href,
+                folder: recentFolder,
+                tries:  0,
+            };
+
+            const matchTitle = html.match(regexpTitle)[1];
+            const matchTime = html.match(regexpTime)[1];
+
+            if (this.options.all) {
+                linksToFolders.push(linkObj);
+            } else if (matchTime) {
+                // Пробуем распарсить текстовую дату и понять, надо ли скачивать файл
+                // matchTime: "2 years ago", "last year", "16 hours ago", "20 days ago", "1 hour ago", "4 months ago"
+                const timeParts = matchTime.match(regexpTimeParts);
+                const minutesSinceUpdate = (timeKoeffs[timeParts.groups.type] ? timeKoeffs[timeParts.groups.type] : 1)
+                    * parseInt(timeParts.groups.num === 'last' ? 1 : timeParts.groups.num);
+
+                if (minutesSinceUpdate <= this.hoursForPartialBackup * 60) {
+                    linksToFolders.push(linkObj);
+                }
+            }
+        }
+
+        if (linksToFolders.length) {
+            // сохранение всех файлов
+            this.currentReportData.filesShouldBe += linksToFolders.length;
+            await this.startFilesDownload(linksToFolders);
+        }
+
+        if (this.options.verbose) console.log('Backup recent, done');
     }
 
     /**
      *
      */
-    async backupAllProjects(linksToFolders: LinkToFolder[]) {
-        if (this.options.verbose) console.log('Backup all projects, start');
-
+    async startFilesDownload(linksToFolders: LinkToFolder[]) {
         let currentArray = linksToFolders;
 
         for (let currentTry = 0; currentTry < this.MAX_TRIES; currentTry++) {
@@ -156,7 +252,7 @@ class Backuper {
 
             for (let i = 0; i < currentArray.length; i++) {
                 const timeStart = Date.now();
-                const result = await this.backupFile(currentArray[i]);
+                const result = await this.downloadOneFile(currentArray[i]);
 
                 if (this.options.verbose) {
                     const timeForOne = this.formatTime((Date.now() - timeStart) / 1000);
@@ -188,10 +284,7 @@ class Backuper {
                 this.currentReportData.errors.push('Can\'t download ' + currentArray[i].link);
             }
         }
-
-        if (this.options.verbose) console.log('Backup all projects, done');
     }
-
 
     /**
      * составить html для отправки и отправить
@@ -213,7 +306,7 @@ class Backuper {
             const statistics = this.options.verbose ? report.statistics.join('<br>') : '';
 
             if (!report.filesShouldBe) {
-                const hours = parseInt(config.hoursForPartialBackup);
+                const hours = this.hoursForPartialBackup;
                 const text = this.options.all ? 'Списов файлов пуст!' : `За последние ${hours}ч нет изменённых файлов.`;
                 fullReport.push(`<h1>${report.login}: ${text}</h1>`);
 
@@ -239,14 +332,14 @@ class Backuper {
      * получить ссылки на нужные файлы для одного пользователя
      */
     async getUserLinks(user: User): Promise<LinksToProjectsAndTeams[]> {
-        return await api.createLinksToFiles(user.teams, user.token, this.options.all, parseInt(config.hoursForPartialBackup));
+        return await api.createLinksToFiles(user.teams, user.token, this.options.all, this.hoursForPartialBackup);
     }
 
     /**
      * сохранить один файл
      */
-    async backupFile(linkToFolder: LinkToFolder): Promise<Boolean> {
-        if (this.options.debug) console.log('backupFile', linkToFolder.link);
+    async downloadOneFile(linkToFolder: LinkToFolder): Promise<Boolean> {
+        if (this.options.verbose) console.log('downloadOneFile start', linkToFolder.link);
 
         const driver = await this.getWebdriver();
 
@@ -452,7 +545,7 @@ class Backuper {
     /**
      * дождаться пока появится элемент и вернуть его
      */
-    async waitForElementAndGet(selector: string) {
+    async waitForElementAndGet(selector: string, multiple: boolean = false) {
         const element = await this.webdriver.wait(
             WebDriver.until.elementLocated(WebDriver.By.css(selector)),
             this.delayElement
@@ -463,7 +556,11 @@ class Backuper {
             this.delayElement
         );
 
-        return await this.webdriver.findElement(WebDriver.By.css(selector));
+        if (multiple) {
+            return await this.webdriver.findElements(WebDriver.By.css(selector));
+        } else {
+            return await this.webdriver.findElement(WebDriver.By.css(selector));
+        }
     }
 
     /**
@@ -477,6 +574,7 @@ class Backuper {
                 '--start-maximized',
                 '--headless',
                 '--no-sandbox',
+                '--log-level=' + (this.options.debug ? '1' : (this.options.verbose ? '2' : '3')),
                 // '--disable-gpu',
                 // '--disable-dev-shm-usage',
                 '--ignore-gpu-blacklist',

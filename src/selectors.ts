@@ -7,6 +7,7 @@ const menuLinkDrafts = '[class^="folder_link--draftsName"]'; // пункт ме�
 const menuLinkProjects = '[class^="folder_link--folderName"]'; // проект в левой колонке
 const folderNameInFile = '[class^="toolbar_view--buttonGroup"]'; // кнопки,
 const quickActionsInput = '[class^="quick_actions--searchInput"]'; // Окно быстрых действий
+const recentFilesSelector = '[class^=tiles_view--tiles] a:not([draggable])'; // Макеты в списке Recent' файлов
 
 module.exports = {
     menuLinkDrafts,
@@ -16,5 +17,6 @@ module.exports = {
     authFieldPassword,
     loginLink,
     folderNameInFile,
-    quickActionsInput
+    quickActionsInput,
+    recentFilesSelector,
 };
