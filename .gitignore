@@ -1,7 +1,18 @@
+/node_modules/
+/build/
+package-lock.json
+
 config.json
 config.json.*
 !config.json.example
-/node_modules/
-/build/
+
 chromedriver*
-package-lock.json
+
+
+# Editor directories and files
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
