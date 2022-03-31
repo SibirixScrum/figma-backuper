@@ -221,10 +221,17 @@ class Backuper {
                 linksToFolders.push(linkObj);
             } else if (matchTime) {
                 // Пробуем распарсить текстовую дату и понять, надо ли скачивать файл
-                // matchTime: "2 years ago", "last year", "16 hours ago", "20 days ago", "1 hour ago", "4 months ago"
-                const timeParts = matchTime.match(regexpTimeParts);
-                const minutesSinceUpdate = (timeKoeffs[timeParts.groups.type] ? timeKoeffs[timeParts.groups.type] : 1)
-                    * parseInt(timeParts.groups.num === 'last' ? 1 : timeParts.groups.num);
+                // matchTime: "yesterday", "2 years ago", "last year", "16 hours ago", "20 days ago", "1 hour ago", "4 months ago"
+                let minutesSinceUpdate = 0;
+                if (matchTime === 'yesterday') {
+                    if (this.options.debug) console.log("Time: " + matchTime);
+                    minutesSinceUpdate = 60 * 24;
+                } else {
+                    const timeParts = matchTime.match(regexpTimeParts);
+                    if (this.options.debug) console.log("Time: " + matchTime, "AS: ", timeParts);
+                    minutesSinceUpdate = (timeKoeffs[timeParts.groups.type] ? timeKoeffs[timeParts.groups.type] : 1)
+                        * parseInt(timeParts.groups.num === 'last' ? 1 : timeParts.groups.num);
+                }
 
                 if (minutesSinceUpdate <= this.hoursForPartialBackup * 60) {
                     linksToFolders.push(linkObj);
